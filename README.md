@@ -1,6 +1,6 @@
 # Image Excluder
 
-A Streamlit application for reviewing and excluding pyramid tiled TIFF images with an interactive OpenSeadragon viewer and dedicated tile server.
+A Streamlit application for reviewing and excluding pyramid tiled TIFF images with OpenSeadragon viewer using the GeoTIFFTileSource plugin.
 
 ![showcase](showcase.gif)
 
@@ -12,56 +12,33 @@ A Streamlit application for reviewing and excluding pyramid tiled TIFF images wi
 - **📄 Smart Pagination**: 30 images per page with 5-image overlap for better context
 - **📊 CSV Export**: Export excluded images list with reasons and paths
 - **💾 Auto Backup**: Automatic session backup and restore functionality
-- **⚡ High Performance**: Dedicated Flask tile server for efficient pyramid TIFF handling
+- **⚡ High Performance**: Direct TIFF file access with browser-based tile generation
 
 ## Architecture
 
-- **Tile Server** (Flask): Serves pyramid TIFF tiles at `http://localhost:5000`
-- **Web Interface** (Streamlit): Main UI at `http://localhost:8501`
+**Simplified Design:**
+- **Streamlit Frontend**: User interface for image browsing and management
+- **FastAPI Server**: Lightweight HTTP server for serving TIFF files with range request support
+- **GeoTIFFTileSource**: Browser-based TIFF reading and tile generation
 
-## Quick Start
+## GeoTIFF Support
 
-```bash
-# Install dependencies
-uv sync
-
-# Run application
-./run.sh
-```
-
-Access the app at `http://localhost:8501`
-
-## Usage
-
-1. **Load Images**: Enter directory path and click "🔍 Load Images"
-2. **Review**: Use OpenSeadragon viewer to zoom/pan through images
-3. **Exclude**: Select exclusion reason from dropdown to exclude images
-4. **Batch Operations**: Use batch exclude/include for entire pages
-5. **Export**: Download excluded images list as CSV
-
-## Supported Formats
-
-- **Primary**: `.tif`, `.tiff` (pyramid tiled TIFFs)
-- **Basic**: `.jpg`, `.jpeg`, `.png`
-
-## Technical Details
-
-- **Pagination**: 30 images/page with 5-image overlap for context continuity
-- **Performance**: Direct pyramid tile access, efficient caching
-- **Export Format**: CSV with image stems, exclusion reasons, and full paths
-- **Backup**: Automatic session backups in `/backups` directory
+Uses **GeoTIFFTileSource** plugin for efficient TIFF viewing:
+- **FastAPI Server**: High-performance server with HTTP range request support
+- **Cloud Optimized GeoTIFF (COG) Ready**: Works best with COG files
+- **Memory Efficient**: Streams data on demand via HTTP range requests
+- **CORS Enabled**: Allows browser access to TIFF files
 
 ## Dependencies
 
 - `streamlit` - Web framework
-- `flask` + `flask-cors` - Tile server
+- `fastapi` + `uvicorn` - Fast HTTP server
 - `pillow` - Image processing
 - `pandas` - Data export
-- `tifffile` - Pyramid TIFF reading
-- `requests` - HTTP communication
+- `pyvips` - Fast thumbnail generation
 
 ## Troubleshooting
 
-- **Port Issues**: Ensure ports 5000 and 8501 are available
 - **Performance**: Reduce images per page if experiencing slowness
 - **Images not loading**: Check directory path and TIFF file format
+- **Browser compatibility**: Modern browsers required for GeoTIFFTileSource

@@ -3,13 +3,10 @@ import pandas as pd
 import os
 from pathlib import Path
 from PIL import Image
-import subprocess
-import threading
-import time
-import requests
 import pyvips
 import io
 import json
+import time
 from datetime import datetime
 from config import (
     DEFAULT_IMAGES_PER_PAGE, 
@@ -19,9 +16,9 @@ from config import (
     DEFAULT_EXCLUSION_REASONS
 )
 
-# Tile server configuration
-TILE_SERVER_PORT = 5000
-TILE_SERVER_URL = f"http://127.0.0.1:{TILE_SERVER_PORT}"
+# Simple server configuration
+SERVER_PORT = 5000
+SERVER_URL = f"http://127.0.0.1:{SERVER_PORT}"
 
 # Backup configuration
 BACKUP_DIR = Path("backups")
@@ -123,96 +120,95 @@ def load_latest_backup_on_startup():
                 st.success(f"🔄 Auto-restored from backup: {latest_backup.name}")
         st.session_state.backup_loaded_on_startup = True
 
-def start_tile_server():
-    """Start the tile server in the background"""
-    if 'tile_server_started' not in st.session_state:
-        try:
-            # Check if server is already running
-            response = requests.get(f"{TILE_SERVER_URL}/health", timeout=1)
-            if response.status_code == 200:
-                st.session_state.tile_server_started = True
-                return True
-        except Exception:
-            pass
-        
-        # Start the tile server
-        try:
-            def run_server():
-                subprocess.run([
-                    "uv", "run", "python", "tile_server.py"
-                ], cwd=os.getcwd(), capture_output=True)
-            
-            thread = threading.Thread(target=run_server, daemon=True)
-            thread.start()
-            
-            # Wait for server to start
-            for _ in range(10):  # Wait up to 10 seconds
-                try:
-                    response = requests.get(f"{TILE_SERVER_URL}/health", timeout=1)
-                    if response.status_code == 200:
-                        st.session_state.tile_server_started = True
-                        return True
-                except Exception:
-                    time.sleep(1)
-            
-            return False
-        except Exception as e:
-            st.error(f"Failed to start tile server: {e}")
-            return False
-    return True
 
-def encode_filepath(filepath):
-    """Encode filepath for URL"""
-    return filepath.replace('/', '__SLASH__')
 
-def create_openseadragon_viewer(image_path, container_id, height=350):
-    """Create OpenSeadragon viewer with DZI source"""
-    encoded_path = encode_filepath(image_path)
-    dzi_url = f"{TILE_SERVER_URL}/dzi/{encoded_path}"
+def create_openseadragon_geotiff_viewer(image_path, container_id, height=350):
+    """Create OpenSeadragon viewer with GeoTIFFTileSource plugin using HTTP URL"""
+    
+    # Use HTTP URL served by the separate FastAPI server
+    # Encode the file path for URL safety
+    encoded_path = image_path.replace('/', '__SLASH__')
+    tiff_url = f"{SERVER_URL}/{encoded_path}"
     
     viewer_html = f"""
     <div id="{container_id}" style="width: 100%; height: {height}px; border: 2px solid #ddd; border-radius: 8px; background: #f8f9fa;"></div>
-    <script src="https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/openseadragon.min.js"></script>
+    
+    <!-- Load OpenSeadragon -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/openseadragon.min.js"></script>
+    
+    <!-- Load GeoTIFFTileSource plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/geotiff-tilesource@2.2.0/dist/geotiff-tilesource.min.js"></script>
+    
     <script>
         if (typeof OpenSeadragon !== 'undefined') {{
             try {{
-                var viewer_{container_id} = OpenSeadragon({{
-                    id: "{container_id}",
-                    prefixUrl: "https://cdn.jsdelivr.net/npm/openseadragon@4.1.0/build/openseadragon/images/",
-                    tileSources: "{dzi_url}",
-                    showNavigationControl: true,
-                    showZoomControl: true,
-                    showHomeControl: true,
-                    showFullPageControl: false,
-                    gestureSettingsMouse: {{
-                        clickToZoom: false,
-                        dblClickToZoom: true
-                    }},
-                    zoomInButton: "zoom-in",
-                    zoomOutButton: "zoom-out", 
-                    homeButton: "home",
-                    immediateRender: true,
-                    blendTime: 0.1,
-                    animationTime: 0.5,
-                    springStiffness: 10.0,
-                    visibilityRatio: 0.5,
-                    minZoomLevel: 0.1,
-                    maxZoomLevel: 20,
-                    constrainDuringPan: true,
-                    wrapHorizontal: false,
-                    wrapVertical: false
-                }});
+                console.log('OpenSeadragon.GeoTIFFTileSource available:', typeof OpenSeadragon.GeoTIFFTileSource);
                 
-                // Add error handling
-                viewer_{container_id}.addHandler('open-failed', function(event) {{
+                if (typeof OpenSeadragon.GeoTIFFTileSource !== 'undefined') {{
+                    console.log('Loading TIFF from HTTP URL:', '{tiff_url}');
+                    
+                    // Get all tile sources from the TIFF file
+                    OpenSeadragon.GeoTIFFTileSource.getAllTileSources('{tiff_url}', {{
+                        logLatency: false,
+                    }})
+                    .then(tiffTileSources => {{
+                        console.log('Found', tiffTileSources.length, 'tile sources in TIFF');
+                        
+                        if (tiffTileSources.length === 0) {{
+                            throw new Error('No tile sources found in TIFF file');
+                        }}
+                        
+                        // Create OpenSeadragon viewer
+                        const viewer_{container_id} = new OpenSeadragon.Viewer({{
+                            id: "{container_id}",
+                            prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/4.1.0/images/",
+                            tileSources: tiffTileSources,
+                            crossOriginPolicy: "Anonymous",
+                            showNavigationControl: true,
+                            showZoomControl: true,
+                            showHomeControl: true,
+                            showFullPageControl: false,
+                            gestureSettingsMouse: {{
+                                clickToZoom: false,
+                                dblClickToZoom: true
+                            }},
+                            immediateRender: true,
+                            blendTime: 0.1,
+                            animationTime: 0.5,
+                            springStiffness: 10.0,
+                            visibilityRatio: 0.5,
+                            minZoomLevel: 0.1,
+                            maxZoomLevel: 20,
+                            constrainDuringPan: true,
+                            wrapHorizontal: false,
+                            wrapVertical: false
+                        }});
+                        
+                        // Add error handling
+                        viewer_{container_id}.addHandler('open-failed', function(event) {{
+                            console.error('OpenSeadragon open-failed:', event);
+                            document.getElementById("{container_id}").innerHTML = 
+                                '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 14px;">Failed to load TIFF image</div>';
+                        }});
+                        
+                        console.log('GeoTIFF viewer created successfully');
+                    }})
+                    .catch(error => {{
+                        console.error('Error processing TIFF file:', error);
+                        document.getElementById("{container_id}").innerHTML = 
+                            '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 14px;">Error processing TIFF: ' + error.message + '</div>';
+                    }});
+                        
+                }} else {{
+                    console.error('GeoTIFFTileSource plugin not loaded');
                     document.getElementById("{container_id}").innerHTML = 
-                        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 14px;">Failed to load image</div>';
-                }});
+                        '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 14px;">GeoTIFFTileSource plugin not available</div>';
+                }}
                 
             }} catch (error) {{
                 console.error('OpenSeadragon error:', error);
                 document.getElementById("{container_id}").innerHTML = 
-                    '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 14px;">Error loading viewer</div>';
+                    '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 14px;">Error loading viewer: ' + error.message + '</div>';
             }}
         }} else {{
             document.getElementById("{container_id}").innerHTML = 
@@ -401,7 +397,8 @@ def render_image_card(image_path, image_name, container_id, cols_per_row):
         # Use OpenSeadragon viewer with adaptive height based on grid size
         viewer_height = 300 if cols_per_row >= 5 else 400
         try:
-            viewer_html = create_openseadragon_viewer(image_path, container_id, viewer_height)
+            # Always use GeoTIFF tile source for TIFF files
+            viewer_html = create_openseadragon_geotiff_viewer(image_path, container_id, viewer_height)
             st.components.v1.html(viewer_html, height=viewer_height + 50)
         except Exception as e:
             st.error(f"Failed to create viewer: {e}")
@@ -466,13 +463,6 @@ def main():
     # Auto backup
     auto_backup()
     
-    # Start tile server
-    if not start_tile_server():
-        st.error("❌ Failed to start tile server. Please restart the application.")
-        return
-    else:
-        st.success("✅ Tile server is running")
-    
     # Sidebar
     with st.sidebar:
         st.header("📁 Directory Selection")
@@ -501,7 +491,7 @@ def main():
         
         # Viewer type selection
         st.session_state.use_thumbnail_view = st.toggle(
-            "🖼️ Use thumbnail view (faster loading)",
+            "🖼️ Use thumbnail view",
             value=st.session_state.use_thumbnail_view,
             help="Toggle between OpenSeadragon zoomable viewer and simple thumbnail view"
         )

@@ -1,7 +1,7 @@
 # Configuration for Image Excluder
 
 # Default settings
-DEFAULT_IMAGES_PER_PAGE = 30  # Show 30 images per page
+DEFAULT_IMAGES_PER_PAGE = 15  # Show 15 images per page
 PAGE_OVERLAP = 5  # Overlap 5 images between consecutive pages
 THUMBNAIL_SIZE = (400, 400)  # Increased for better quality
 SUPPORTED_EXTENSIONS = ['.tif', '.tiff', '.TIF', '.TIFF', '.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG']
