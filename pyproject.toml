@@ -1,0 +1,21 @@
+[project]
+name = "image-excluder"
+version = "0.1.0"
+description = "A Streamlit app for reviewing and excluding pyramid tiled TIFF images with OpenSeadragon viewer"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3.1.1",
+    "flask-cors>=6.0.1",
+    "imagecodecs>=2025.3.30",
+    "pandas>=2.3.1",
+    "pillow>=11.3.0",
+    "pyvips>=3.0.0",
+    "rasterio>=1.4.3",
+    "requests>=2.32.4",
+    "streamlit>=1.46.1",
+    "tifffile>=2025.6.11",
+]
+
+[project.scripts]
+image-excluder = "streamlit:main"

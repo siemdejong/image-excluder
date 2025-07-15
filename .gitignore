@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Streamlit
+.streamlit/
+
+# uv
+.uv/
+
+# Exported CSV files
+excluded_images.csv
+
+# Test images (if any)
+test_images/
+sample_images/
+
+backups
